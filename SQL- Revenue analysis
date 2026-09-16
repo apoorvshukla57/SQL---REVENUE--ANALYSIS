@@ -1,0 +1,107 @@
+-- SQL Revenue Analysis - Day 25
+-- Author: Apoorv Shukla
+-- 4 business questions solved with Window Functions
+
+-- ======================================================
+-- QUERY 1: Months where revenue > 3-month moving average
+-- ======================================================
+WITH sales_revenue AS (
+  SELECT 
+    DATE_TRUNC('month', order_date) AS month,
+    SUM(revenue) AS monthly_revenue
+  FROM orders
+  GROUP BY 1
+),
+moving_avg AS (
+  SELECT 
+    month,
+    monthly_revenue,
+    AVG(monthly_revenue) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS three_month_avg
+  FROM sales_revenue
+)
+SELECT * FROM moving_avg
+WHERE monthly_revenue > three_month_avg
+ORDER BY month;
+
+-- ======================================================
+-- QUERY 2: Months where absolute growth > 2000
+-- ======================================================
+WITH sales_revenue AS (
+  SELECT 
+    EXTRACT(MONTH FROM order_date) AS month,
+    SUM(revenue) AS monthly_revenue
+  FROM orders
+  GROUP BY EXTRACT(MONTH FROM order_date)
+),
+with_previous_revenue AS (
+  SELECT 
+    month,
+    monthly_revenue,
+    LAG(monthly_revenue) OVER (ORDER BY month) AS previous_revenue
+  FROM sales_revenue
+)
+SELECT 
+  month,
+  monthly_revenue,
+  previous_revenue,
+  (monthly_revenue - previous_revenue) AS growth_amount
+FROM with_previous_revenue
+WHERE (monthly_revenue - previous_revenue) > 2000;
+
+-- ======================================================
+-- QUERY 3: Months where percentage growth > 20% (Breakout Months)
+-- ======================================================
+WITH sales_revenue AS (
+  SELECT 
+    EXTRACT(MONTH FROM order_date) AS month,
+    SUM(revenue) AS monthly_revenue
+  FROM orders
+  GROUP BY EXTRACT(MONTH FROM order_date)
+),
+with_previous_revenue AS (
+  SELECT 
+    month,
+    monthly_revenue,
+    LAG(monthly_revenue) OVER (ORDER BY month) AS previous_revenue
+  FROM sales_revenue
+),
+growth_analysis AS (
+  SELECT
+    month,
+    monthly_revenue,
+    previous_revenue,
+    ROUND((monthly_revenue - previous_revenue) * 100.0 / NULLIF(previous_revenue, 0), 2) AS growth_percentage
+  FROM with_previous_revenue
+)
+SELECT * FROM growth_analysis
+WHERE growth_percentage > 20
+ORDER BY growth_percentage DESC;
+
+-- ======================================================
+-- QUERY 4: All positive growth months (Growth > 0%)
+-- ======================================================
+WITH sales_revenue AS (
+  SELECT 
+    EXTRACT(MONTH FROM order_date) AS month,
+    SUM(revenue) AS monthly_revenue
+  FROM orders
+  GROUP BY EXTRACT(MONTH FROM order_date)
+),
+with_previous_month AS (
+  SELECT
+    month,
+    monthly_revenue,
+    LAG(monthly_revenue) OVER (ORDER BY month) AS previous_revenue
+  FROM sales_revenue
+),
+growth_analysis AS (
+  SELECT
+    month,
+    monthly_revenue,
+    previous_revenue,
+    ROUND((monthly_revenue - previous_revenue) * 100.0 / NULLIF(previous_revenue, 0), 2) AS growth_percentage
+  FROM with_previous_month
+)
+SELECT * FROM growth_analysis
+WHERE growth_percentage > 0
+ORDER BY growth_percentage DESC;
